@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌟 Factory Game</title>
+<style>
+body { font-family:'Arial', sans-serif; margin:0; padding:0; background:#e0f7fa; display:flex; justify-content:center; align-items:center; height:100vh; }
+.screen { display:none; flex-direction:column; align-items:center; justify-content:flex-start; text-align:center; width:100%; height:100%; padding:10px; box-sizing:border-box; }
+#lobby-screen { display:flex; }
+h1 { font-size:2.5rem; color:#00796b; margin-bottom:15px; text-shadow:2px 2px #b2dfdb; }
+h2 { color:#004d40; margin:10px 0; }
+#hud { position:fixed; top:10px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.95); padding:10px 20px; border-radius:15px; box-shadow:0 4px 12px rgba(0,0,0,0.3); font-size:1rem; z-index:999; display:flex; gap:15px; font-weight:bold; flex-wrap:wrap; justify-content:center;}
+#game-container, #store-container { background:white; border-radius:20px; padding:20px; box-shadow:6px 6px 16px rgba(0,0,0,0.25); width:90%; max-width:480px; }
+button { font-size:1rem; padding:12px 25px; border:none; border-radius:12px; cursor:pointer; margin:6px; color:white; transition:0.2s; box-shadow:0 4px 8px rgba(0,0,0,0.25); font-weight:bold; width:80%; max-width:200px; }
+button:hover { transform:translateY(-2px); box-shadow:0 5px 10px rgba(0,0,0,0.35); }
+button:active { transform:scale(0.96); }
+.upgrade-btn { background:linear-gradient(180deg,#0288d1,#01579b); }
+.nav-btn { background:linear-gradient(180deg,#f57c00,#e65100); }
+.production-info { font-size:1.1rem; margin:10px 0; font-weight:bold; }
+#conveyor { position:relative; width:100%; height:60px; background:#aaa; border-radius:12px; margin:15px auto; overflow:hidden; box-shadow: inset 0 4px 10px rgba(0,0,0,0.25); }
+.belt { position:absolute; width:200%; height:100%; background:repeating-linear-gradient(90deg,#888 0 20px,#666 20px 40px); animation:moveBelt 2s linear infinite; }
+@keyframes moveBelt { from { left:0; } to { left:-50%; } }
+.item { position:absolute; top:12px; font-size:1.8rem; animation:moveItem 6s linear forwards; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <span>철 ⚙: <span id="iron">0</span></span>
+  <span>석탄 ⛏: <span id="coal">0</span></span>
+  <span>금 💰: <span id="gold">0</span></span>
+</div>
+
+<div id="lobby-screen" class="screen">
+  <div>
+    <h1>🏭 Factory Corp</h1>
+    <button onclick="goGame()">🎮 게임 시작</button>
+    <button onclick="goStore()">🛒 상점</button>
+  </div>
+</div>
+
+<div id="game-screen" class="screen">
+  <div id="game-container">
+    <h2>⛏️ 채굴 & 생산</h2>
+    <div id="conveyor"><div class="belt"></div></div>
+    <div class="production-info">
+      생산기: <span id="producers">0</span> (속도: <span id="rate">0</span>/초)
+    </div>
+    <button id="gather-btn">🔨 철 채굴 (꾹 누르기)</button><br>
+    <button class="upgrade-btn" onclick="buyProducer()">🏭 생산기 구매 (철 10)</button>
+    <button class="upgrade-btn" onclick="upgradeFactory()">🛠️ 업그레이드 (철 100)</button>
+    <div style="margin-top:10px;">
+      <button class="nav-btn" onclick="goStore()">🛒 상점</button>
+      <button class="nav-btn" onclick="goLobby()">🏠 로비</button>
+    </div>
+  </div>
+</div>
+
+<div id="store-screen" class="screen">
+  <div id="store-container">
+    <h2>🛒 상점</h2>
+    <h3>자동화</h3>
+    <button class="upgrade-btn" onclick="buyAutomation()">⚡ 자동 생산기 (철 20)</button>
+    <h3>건물</h3>
+    <button class="upgrade-btn" onclick="buildFactory()">🏗️ 공장 생성기 (철 200)</button>
+    <button class="upgrade-btn" onclick="buildPowerPlant()">🔋 발전소 (철 200)</button>
+    <button class="upgrade-btn" onclick="buildLab()">🔬 연구소 (금 100)</button>
+    <h3>인력</h3>
+    <button class="upgrade-btn" onclick="hireWorker()">👷 근로자 고용 (철 50)</button>
+    <h3>설계도</h3>
+    <button class="upgrade-btn" onclick="buyBlueprint()">📜 설계도 (철 100)</button>
+    <div style="margin-top:10px;">
+      <button onclick="goGame()">🎮 게임으로</button>
+      <button onclick="goLobby()">🏠 로비</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 자원
+let iron=0, coal=0, gold=0;
+let producers=0, gatherRate=1, automationRate=0;
+let gatherInterval=null;
+
+// UI
+function updateUI(){
+  document.getElementById('iron').innerText=iron.toFixed(0);
+  document.getElementById('coal').innerText=coal.toFixed(0);
+  document.getElementById('gold').innerText=gold.toFixed(0);
+  document.getElementById('producers').innerText=producers;
+  document.getElementById('rate').innerText=(producers+automationRate).toFixed(1);
+}
+
+// 컨베이어
+function addConveyorItem(icon){
+  const conveyor=document.getElementById('conveyor');
+  const item=document.createElement('div');
+  item.className='item';
+  item.innerText=icon;
+  item.style.left='-50px';
+  item.style.animationDuration=(4+Math.random()*3)+'s';
+  conveyor.appendChild(item);
+  setTimeout(()=>{if(item.parentNode) conveyor.removeChild(item);},8000);
+}
+
+// 수동 채굴
+const gatherBtn=document.getElementById("gather-btn");
+function gather(){iron+=gatherRate; addConveyorItem('⚙'); updateUI();}
+function startGather(){gather(); if(!gatherInterval) gatherInterval=setInterval(gather,150);}
+function stopGather(){clearInterval(gatherInterval); gatherInterval=null;}
+gatherBtn.addEventListener("mousedown",startGather);
+gatherBtn.addEventListener("touchstart",startGather);
+document.addEventListener("mouseup",stopGather);
+document.addEventListener("touchend",stopGather);
+document.addEventListener("mouseleave",stopGather);
+
+// 기능
+function buyProducer(){if(iron>=10){iron-=10;producers++;updateUI();}else alert("철 부족!");}
+function upgradeFactory(){if(iron>=100){iron-=100;gatherRate++;updateUI();}else alert("철 부족!");}
+function buyAutomation(){if(iron>=20){iron-=20;automationRate++;updateUI();}else alert("철 부족!");}
+function buildFactory(){if(iron>=200){iron-=200;producers+=5;addConveyorItem('⚙');updateUI();alert("공장 생성기 건설!");}else alert("철 부족!");}
+function buildPowerPlant(){if(iron>=200){iron-=200;automationRate+=5;updateUI();alert("발전소 건설!");}else alert("철 부족!");}
+function buildLab(){if(gold>=100){gold-=100;gatherRate+=3;automationRate+=1;updateUI();alert("연구소 설립!");}else alert("금 부족!");}
+function hireWorker(){if(iron>=50){iron-=50;automationRate+=0.5;updateUI();alert("근로자 고용 완료!");}else alert("철 부족!");}
+function buyBlueprint(){if(iron>=100){iron-=100;gatherRate+=2;automationRate+=2;updateUI();alert("설계도 구입! 생산력 대폭 향상!");}else alert("철 부족!");}
+
+// 자동 생산
+setInterval(()=>{iron+=producers+automationRate;updateUI();},1000);
+
+// 화면 전환
+function goLobby(){document.querySelectorAll('.screen').forEach(s=>s.style.display='none'); document.getElementById('lobby-screen').style.display='flex';}
+function goGame(){document.querySelectorAll('.screen').forEach(s=>s.style.display='none'); document.getElementById('game-screen').style.display='flex';}
+function goStore(){document.querySelectorAll('.screen').forEach(s=>s.style.display='none'); document.getElementById('store-screen').style.display='flex';}
+
+// 초기 화면
+document.addEventListener("DOMContentLoaded",()=>{goLobby(); updateUI();});
+</script>
+</body>
+</html>
